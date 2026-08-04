@@ -1,524 +1,767 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>반도체 공정 모니터링 대시보드</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>제조 불량 원인 분석 대시보드</title>
 <style>
-  :root{
-    --bg:#f5f7fa; --card:#ffffff; --border:#e2e8f0; --text:#1a202c; --sub:#64748b;
-    --accent:#2563eb; --accent2:#0891b2; --good:#16a34a; --bad:#dc2626;
-    --shadow:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  :root {
+    color-scheme: light;
+    --page:        #f9f9f7;
+    --surface:     #fcfcfb;
+    --surface-2:   #f3f2ee;
+    --ink:         #0b0b0b;
+    --ink-2:       #52514e;
+    --muted:       #898781;
+    --grid:        #e1e0d9;
+    --baseline:    #c3c2b7;
+    --border:      rgba(11,11,11,0.10);
+    --accent:      #2a78d6;
+    --accent-dark: #184f95;
+    --accent-wash: rgba(42,120,214,0.08);
+    --good:        #0ca30c;
+    --critical:    #d03b3b;
+    --warning:     #fab219;
+    --seq-100:#cde2fb; --seq-150:#b7d3f6; --seq-200:#9ec5f4; --seq-250:#86b6ef;
+    --seq-300:#6da7ec; --seq-350:#5598e7; --seq-400:#3987e5; --seq-450:#2a78d6;
+    --seq-500:#256abf; --seq-550:#1c5cab; --seq-600:#184f95; --seq-650:#104281; --seq-700:#0d366b;
   }
-  *{box-sizing:border-box;}
-  body{
-    margin:0; font-family:-apple-system,"Apple SD Gothic Neo","Malgun Gothic",Pretendard,sans-serif;
-    background:var(--bg); color:var(--text); padding:24px;
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface:#1a1a19; --surface-2:#232320;
+      --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781; --grid:#2c2c2a; --baseline:#383835;
+      --border: rgba(255,255,255,0.10);
+      --accent:#3987e5; --accent-dark:#86b6ef; --accent-wash: rgba(57,135,229,0.14);
+      --good:#0ca30c; --critical:#e66767; --warning:#fab219;
+    }
   }
-  .wrap{max-width:1200px; margin:0 auto;}
-  header{margin-bottom:20px;}
-  header h1{font-size:22px; margin:0 0 4px;}
-  header p{margin:0; color:var(--sub); font-size:13px;}
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface:#1a1a19; --surface-2:#232320;
+    --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781; --grid:#2c2c2a; --baseline:#383835;
+    --border: rgba(255,255,255,0.10);
+    --accent:#3987e5; --accent-dark:#86b6ef; --accent-wash: rgba(57,135,229,0.14);
+    --good:#0ca30c; --critical:#e66767; --warning:#fab219;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --page:#f9f9f7; --surface:#fcfcfb; --surface-2:#f3f2ee;
+    --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781; --grid:#e1e0d9; --baseline:#c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --accent:#2a78d6; --accent-dark:#184f95; --accent-wash: rgba(42,120,214,0.08);
+    --good:#0ca30c; --critical:#d03b3b; --warning:#fab219;
+  }
 
-  .panel{
-    background:var(--card); border:1px solid var(--border); border-radius:12px;
-    padding:16px 18px; box-shadow:var(--shadow); margin-bottom:18px;
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; }
+  body {
+    background: var(--page);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.5;
   }
-  .filter-row{display:flex; flex-wrap:wrap; gap:18px; align-items:center;}
-  .filter-group{display:flex; flex-direction:column; gap:6px;}
-  .filter-group label{font-size:12px; color:var(--sub); font-weight:600;}
-  .chip-group{display:flex; flex-wrap:wrap; gap:6px;}
-  .chip{
-    padding:6px 12px; border:1px solid var(--border); border-radius:999px;
-    background:#fff; font-size:13px; cursor:pointer; color:var(--text); user-select:none;
-    transition:.12s;
+  .mono {
+    font-family: ui-monospace, "SF Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
   }
-  .chip:hover{border-color:var(--accent);}
-  .chip.active{background:var(--accent); border-color:var(--accent); color:#fff;}
-  .chip.bad.active{background:var(--bad); border-color:var(--bad);}
-  .reset-btn{
-    margin-left:auto; padding:7px 16px; border-radius:8px; border:1px solid var(--border);
-    background:#fff; color:var(--sub); font-size:13px; cursor:pointer; font-weight:600;
-  }
-  .reset-btn:hover{background:#f1f5f9; color:var(--text);}
+  h1, h2, h3 { text-wrap: balance; margin: 0; }
+  p { margin: 0; }
 
-  .kpi-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:18px;}
-  .kpi{
-    background:var(--card); border:1px solid var(--border); border-radius:12px;
-    padding:16px 18px; box-shadow:var(--shadow);
+  a { color: var(--accent); }
+
+  /* ---- Top bar ---- */
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px;
+    padding: 14px clamp(20px, 4vw, 48px);
+    background: color-mix(in srgb, var(--page) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
   }
-  .kpi .label{font-size:12px; color:var(--sub); font-weight:600; margin-bottom:8px;}
-  .kpi .value{font-size:26px; font-weight:700; line-height:1.2;}
-  .kpi .sub{font-size:12px; color:var(--sub); margin-top:6px;}
-  .kpi .value .unit{font-size:14px; font-weight:500; color:var(--sub); margin-left:2px;}
-
-  .chart-grid{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:18px;}
-  .chart-card h3{margin:0 0 2px; font-size:14px;}
-  .chart-card .desc{font-size:12px; color:var(--sub); margin-bottom:10px;}
-  .chart-card canvas{width:100%; display:block; cursor:crosshair;}
-  .full{grid-column:1 / -1;}
-
-  #tooltip{
-    position:fixed; pointer-events:none; background:rgba(17,24,39,.94); color:#fff;
-    padding:8px 11px; border-radius:8px; font-size:12px; line-height:1.5; z-index:50;
-    display:none; box-shadow:0 4px 12px rgba(0,0,0,.25); white-space:nowrap;
+  .topbar .brand {
+    display:flex; align-items:baseline; gap:10px;
+    font-family: ui-monospace, "SF Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
+    font-size: 13px; letter-spacing: 0.06em; color: var(--ink-2);
+    white-space: nowrap;
   }
-  #tooltip b{font-size:12.5px;}
-
-  footer{color:var(--sub); font-size:12px; text-align:center; margin-top:8px;}
-  .empty-msg{color:var(--sub); font-size:13px; text-align:center; padding:40px 0;}
-
-  @media (max-width:820px){
-    .kpi-grid{grid-template-columns:repeat(2,1fr);}
-    .chart-grid{grid-template-columns:1fr;}
+  .topbar .brand b { color: var(--ink); font-weight: 700; }
+  .topnav { display:flex; gap: 4px; }
+  .topnav a {
+    font-family: ui-monospace, "SF Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
+    font-size: 12px; letter-spacing: 0.04em; text-decoration: none;
+    color: var(--ink-2); padding: 6px 10px; border-radius: 6px;
   }
+  .topnav a:hover { background: var(--surface-2); color: var(--ink); }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 48px) 80px; }
+
+  section { padding-top: 56px; scroll-margin-top: 64px; }
+  section + section { border-top: 1px solid var(--border); margin-top: 56px; }
+
+  .eyebrow {
+    display:flex; align-items:center; gap: 10px;
+    font-family: ui-monospace, "SF Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
+    font-size: 12px; letter-spacing: 0.08em; color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .eyebrow .num {
+    display:inline-flex; align-items:center; justify-content:center;
+    width: 20px; height: 20px; border-radius: 4px;
+    background: var(--accent-wash); color: var(--accent); font-weight: 700; font-size: 11px;
+  }
+  .section-title { font-size: clamp(22px, 3vw, 30px); font-weight: 700; letter-spacing: -0.01em; }
+  .section-sub { color: var(--ink-2); font-size: 15px; margin-top: 8px; max-width: 62ch; }
+
+  /* ---- Cards / grid ---- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 22px;
+  }
+  .card-title { font-size: 14px; font-weight: 700; }
+  .card-caption { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+  .grid-2 { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display:grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 860px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  .chip {
+    display:inline-flex; align-items:center; gap:6px;
+    font-family: ui-monospace, "SF Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
+    font-size: 11px; letter-spacing: 0.03em;
+    padding: 3px 8px; border-radius: 100px;
+    background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--border);
+  }
+  .chip.sig { color: var(--accent-dark); background: var(--accent-wash); border-color: transparent; }
+  .chip .dot { width:6px; height:6px; border-radius:50%; background: currentColor; }
+
+  /* ---- Overview ---- */
+  .hero-row { display:flex; gap: 28px; align-items: flex-end; flex-wrap: wrap; margin-top: 28px;}
+  .hero-figure { font-family: ui-monospace, "SF Mono", "IBM Plex Mono", Menlo, Consolas, monospace; }
+  .hero-figure .label { font-size: 13px; color: var(--ink-2); margin-bottom: 6px; }
+  .hero-figure .value { font-size: clamp(56px, 9vw, 92px); font-weight: 700; line-height: 0.95; letter-spacing: -0.02em; color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;}
+  .hero-figure .value .unit { font-size: 0.4em; color: var(--ink-2); margin-left: 4px; }
+
+  .comp-bar-wrap { flex: 1; min-width: 260px; }
+  .comp-bar { display:flex; height: 34px; border-radius: 6px; overflow: hidden; background: var(--surface-2); }
+  .comp-seg { display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:700; color:#fff; white-space:nowrap; }
+  .comp-legend { display:flex; gap: 18px; margin-top: 10px; font-size: 12.5px; color: var(--ink-2); }
+  .comp-legend .item { display:flex; align-items:center; gap: 6px; }
+  .comp-legend .sw { width:10px; height:10px; border-radius:2px; }
+
+  .meta-row { display:grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 32px; }
+  @media (max-width: 860px) { .meta-row { grid-template-columns: repeat(2, 1fr); } }
+  .meta-tile .k { font-family: ui-monospace, "SF Mono", "IBM Plex Mono", Menlo, Consolas, monospace; font-size: 22px; font-weight: 700; }
+  .meta-tile .l { font-size: 12.5px; color: var(--ink-2); margin-top: 4px; }
+
+  .callout {
+    display:flex; gap: 12px; align-items: flex-start;
+    padding: 14px 16px; border-radius: 8px; margin-top: 28px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    font-size: 13.5px; color: var(--ink-2);
+  }
+  .callout b { color: var(--ink); }
+  .callout .icon { flex: none; margin-top: 1px; }
+
+  /* ---- charts ---- */
+  .chart-card { margin-top: 18px; }
+  .chart-head { display:flex; justify-content: space-between; align-items:flex-start; gap: 12px; flex-wrap: wrap; }
+  .chart-head-left { display:flex; flex-direction:column; gap: 4px; }
+  svg.chart { width: 100%; height: auto; display:block; overflow: visible; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  #heatChart { text-align: center; }
+  #heatChart svg.chart { width: auto; max-width: 100%; }
+  .axis-label { fill: var(--muted); font-size: 10.5px; }
+  .grid-line { stroke: var(--grid); stroke-width: 1; }
+  .baseline { stroke: var(--baseline); stroke-width: 1; }
+
+  .tooltip {
+    position: fixed; pointer-events: none; z-index: 50;
+    background: var(--ink); color: var(--page);
+    font-size: 12px; border-radius: 6px; padding: 8px 10px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    opacity: 0; transform: translate(-50%, -110%); transition: opacity 0.08s ease;
+    white-space: nowrap;
+  }
+  :root[data-theme="dark"] .tooltip, @media (prefers-color-scheme: dark) { }
+  .tooltip .tt-row { display:flex; align-items:center; gap:6px; }
+  .tooltip .tt-key { width: 9px; height:2px; border-radius:1px; }
+  .tooltip .tt-val { font-weight: 700; font-family: ui-monospace, "SF Mono", "IBM Plex Mono", Menlo, Consolas, monospace; }
+  .tooltip .tt-label { color: color-mix(in srgb, var(--page) 65%, transparent); margin-left: 2px;}
+
+  .table-toggle {
+    font-family: ui-monospace, "SF Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
+    font-size: 11px; letter-spacing: 0.03em; color: var(--ink-2);
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    padding: 5px 9px; cursor: pointer;
+  }
+  .table-toggle:hover { color: var(--ink); border-color: var(--ink-2); }
+  .table-toggle:focus-visible, a:focus-visible, .topnav a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 14px; }
+  table.data-table th, table.data-table td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  table.data-table th:first-child, table.data-table td:first-child { text-align: left; font-variant-numeric: normal; }
+  table.data-table thead th { color: var(--muted); font-weight: 600; font-size: 11px; letter-spacing: 0.03em; }
+
+  .rankbar-row { display:flex; align-items:center; gap: 10px; height: 28px; }
+  .rankbar-name { width: 108px; flex: none; font-size: 12.5px; color: var(--ink-2); text-align:right; }
+  .rankbar-track { flex:1; position:relative; height: 100%; }
+  .rankbar-fill { position:absolute; left:0; top:2px; height: 24px; border-radius: 4px; cursor:pointer; }
+  .rankbar-val { font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--ink-2); width: 42px; flex:none; }
+
+  /* ---- Insights ---- */
+  .insight-row {
+    display:grid; grid-template-columns: 8px 1fr 1fr; gap: 18px;
+    padding: 18px 4px; border-top: 1px solid var(--border);
+    align-items: start;
+  }
+  .insight-row:first-of-type { border-top: none; }
+  .insight-stripe { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; }
+  .insight-finding, .insight-action { font-size: 14px; }
+  .insight-k { font-size: 11px; letter-spacing: 0.06em; color: var(--muted); text-transform: uppercase; margin-bottom: 5px; font-family: ui-monospace, "SF Mono", "IBM Plex Mono", Menlo, Consolas, monospace;}
+
+  footer {
+    max-width: 1180px; margin: 0 auto; padding: 40px clamp(20px, 4vw, 48px) 60px;
+    color: var(--muted); font-size: 12px; display:flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>반도체 공정 모니터링 대시보드</h1>
-    <p>데이터 출처: 11cha_secom_cleaned.csv · 설비별 공정 변수(챔버온도·압력·가스유량) 및 양/불량 현황 모니터링</p>
-  </header>
 
-  <div class="panel">
-    <div class="filter-row">
-      <div class="filter-group">
-        <label>설비명</label>
-        <div class="chip-group" id="equipChips"></div>
-      </div>
-      <div class="filter-group">
-        <label>양품여부</label>
-        <div class="chip-group" id="resultChips"></div>
-      </div>
-      <button class="reset-btn" id="resetBtn">필터 초기화</button>
-    </div>
-  </div>
-
-  <div class="kpi-grid" id="kpiGrid"></div>
-
-  <div class="chart-grid">
-    <div class="panel chart-card">
-      <h3>설비명별 건수</h3>
-      <div class="desc">현재 필터 기준, 설비(Equipment)별 처리 건수</div>
-      <canvas id="barChart" data-height="260"></canvas>
-    </div>
-    <div class="panel chart-card">
-      <h3>챔버온도 분포</h3>
-      <div class="desc">5℃ 구간별 건수 분포 (구간 경계는 전체 데이터 기준 고정)</div>
-      <canvas id="histChart" data-height="260"></canvas>
-    </div>
-    <div class="panel chart-card full">
-      <h3>측정일시 기준 챔버온도 추이</h3>
-      <div class="desc">시간 순으로 정렬된 챔버온도(℃) 변화 · 점을 올리면 상세 값 표시</div>
-      <canvas id="lineChart" data-height="280"></canvas>
-    </div>
-  </div>
-
-  <footer>총 25건 · 원본 CSV 데이터를 브라우저 내에서 직접 집계 (서버/외부 라이브러리 미사용)</footer>
+<div class="topbar">
+  <div class="brand">DEFECT&nbsp;ANALYSIS <b>/ 제조 불량 원인 분석</b></div>
+  <nav class="topnav">
+    <a href="#overview">01 개요</a>
+    <a href="#causes">02 원인분석</a>
+    <a href="#insights">03 인사이트</a>
+  </nav>
 </div>
 
-<div id="tooltip"></div>
+<main>
+  <section id="overview">
+    <div class="eyebrow"><span class="num">01</span>OVERVIEW</div>
+    <h1 class="section-title">데이터 개요</h1>
+    <p class="section-sub">제조 공정에서 수집한 3,240건의 생산 배치 데이터. 실습을 위해 결측치·이상치를 인위적으로 생성한 뒤 전처리를 완료한 정적 스냅샷 데이터입니다.</p>
+
+    <div class="hero-row">
+      <div class="hero-figure">
+        <div class="label">전체 불량률</div>
+        <div class="value">84.0<span class="unit">%</span></div>
+      </div>
+      <div class="comp-bar-wrap">
+        <div class="comp-bar" id="compBar"></div>
+        <div class="comp-legend">
+          <div class="item"><span class="sw" style="background:var(--good)"></span>정상 517건 (16.0%)</div>
+          <div class="item"><span class="sw" style="background:var(--critical)"></span>불량 2,723건 (84.0%)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="meta-row">
+      <div class="meta-tile"><div class="k mono">3,240</div><div class="l">전체 표본 수 (건)</div></div>
+      <div class="meta-tile"><div class="k mono">17</div><div class="l">수집 변수 수</div></div>
+      <div class="meta-tile"><div class="k mono">0</div><div class="l">결측치 (전처리 완료)</div></div>
+      <div class="meta-tile"><div class="k mono">3</div><div class="l">핵심 연관 요인 (다음 섹션)</div></div>
+    </div>
+
+    <div class="callout">
+      <span class="icon">&#9888;</span>
+      <div><b>표본 구성에 대한 주의:</b> 정상(16%)·불량(84%) 비율이 불균형해 전체 평균 통계는 불량 쪽에 치우칠 수 있습니다. 아래 분석은 이를 감안해 그룹별 비교와 통계 검정으로 보완했습니다. 또한 시간 축이 없는 스냅샷 데이터라 추세가 아닌 <b>구조적 연관성</b> 중심으로 해석합니다.</div>
+    </div>
+  </section>
+
+  <section id="causes">
+    <div class="eyebrow"><span class="num">02</span>ROOT CAUSE</div>
+    <h1 class="section-title">불량과 연관된 요인</h1>
+    <p class="section-sub">17개 변수 중 무엇이 불량 여부(DefectStatus)를 설명하는지, RandomForest 변수 중요도와 통계 검정으로 확인했습니다.</p>
+
+    <div class="card chart-card">
+      <div class="chart-head">
+        <div class="chart-head-left">
+          <div class="card-title">변수 중요도 순위 — 17개 중 3개가 지배적</div>
+          <div class="card-caption">RandomForest 분류 모델 기준 (DefectRate는 데이터 누수 방지를 위해 제외)</div>
+        </div>
+        <button class="table-toggle" id="toggleRankTable" aria-expanded="false">표로 보기</button>
+      </div>
+      <div id="rankbarChart" style="margin-top:18px;"></div>
+      <div id="rankTableWrap" style="display:none;"></div>
+    </div>
+
+    <div class="grid-2" style="margin-top:16px;">
+      <div class="card chart-card">
+        <div class="chart-head">
+          <div class="chart-head-left">
+            <div class="card-title">정비시간 &#215; 불량률 추세</div>
+            <div class="card-caption">이동평균(250건 창) · 10시간 부근에서 불량률이 꺾여 오름</div>
+          </div>
+          <span class="chip sig"><span class="dot"></span>p&lt;0.001</span>
+        </div>
+        <div id="mhChart"></div>
+      </div>
+
+      <div class="card chart-card">
+        <div class="chart-head">
+          <div class="chart-head-left">
+            <div class="card-title">품질점수 분포 — 정상 vs 불량</div>
+            <div class="card-caption">76점 미만 구간은 정상군이 거의 존재하지 않음</div>
+          </div>
+          <span class="chip sig"><span class="dot"></span>p&lt;0.001</span>
+        </div>
+        <div id="qsChart"></div>
+      </div>
+    </div>
+
+    <div class="card chart-card">
+      <div class="chart-head">
+        <div class="chart-head-left">
+          <div class="card-title">리스크 지도 — 정비시간 &#215; 품질점수</div>
+          <div class="card-caption">두 핵심 요인을 함께 놓았을 때의 구간별 불량률(%). 값이 클수록 진한 파랑.</div>
+        </div>
+        <button class="table-toggle" id="toggleHeatTable" aria-expanded="false">표로 보기</button>
+      </div>
+      <div id="heatChart" style="margin-top: 14px;"></div>
+      <div id="heatTableWrap" style="display:none;"></div>
+    </div>
+
+    <div class="callout" style="margin-top:16px;">
+      <span class="icon">&#8505;</span>
+      <div><b>나머지 14개 변수</b>(에너지사용량·공급업체품질·안전사고건수·납기지연 등)는 중요도·상관계수가 모두 0.03 이하로, 불량 여부와 뚜렷한 연관을 보이지 않았습니다 — 위 순위 차트의 회색 막대 구간을 참고하세요.</div>
+    </div>
+  </section>
+
+  <section id="insights">
+    <div class="eyebrow"><span class="num">03</span>INSIGHTS</div>
+    <h1 class="section-title">인사이트 &amp; 제안</h1>
+    <p class="section-sub">발견한 패턴과, 그로부터 이어지는 실행 가능한 제안입니다.</p>
+
+    <div style="margin-top: 20px;">
+      <div class="insight-row">
+        <div class="insight-stripe" style="background:var(--critical)"></div>
+        <div><div class="insight-k">발견</div><div class="insight-finding">품질점수 <b>76점</b>을 경계로 정상군과 불량군이 거의 분리됨 (76점 미만은 93~96%가 불량)</div></div>
+        <div><div class="insight-k">제안</div><div class="insight-action">76점을 관리 하한선(control limit)으로 설정하고, 미달 시 즉시 경고하는 모니터링 규칙 도입</div></div>
+      </div>
+      <div class="insight-row">
+        <div class="insight-stripe" style="background:var(--warning)"></div>
+        <div><div class="insight-k">발견</div><div class="insight-finding">정비시간 <b>12시간</b> 이상 &amp; 생산량 <b>825개</b> 이상 구간이 겹치면 불량률이 90% 이상으로 급등</div></div>
+        <div><div class="insight-k">제안</div><div class="insight-action">두 조건이 동시에 발생하는 구간을 고위험 구역으로 태깅해 우선 점검 대상으로 관리</div></div>
+      </div>
+      <div class="insight-row">
+        <div class="insight-stripe" style="background:var(--accent)"></div>
+        <div><div class="insight-k">주의 — 인과관계 아님</div><div class="insight-finding">정비시간이 길수록 불량률이 높은 것은 <b>정비가 원인</b>이 아니라, 이미 문제가 있던 라인에 정비가 몰린 <b>결과 지표</b>일 가능성이 큼</div></div>
+        <div><div class="insight-k">제안</div><div class="insight-action">"불량 원인"이 아닌 "고위험 신호"로 재해석 — 정비 이력이 잦은 라인을 사전 모니터링 대상으로 분류</div></div>
+      </div>
+      <div class="insight-row">
+        <div class="insight-stripe" style="background:var(--muted)"></div>
+        <div><div class="insight-k">발견</div><div class="insight-finding">나머지 14개 변수는 개별 영향력이 미미해, 관리 리소스를 분산하기보다 3개 핵심 요인에 집중하는 편이 효율적</div></div>
+        <div><div class="insight-k">제안</div><div class="insight-action">에너지·안전사고 등 지표는 별도 관리 체계 유지, 신규 투자는 품질점수·정비주기·생산량 통제에 우선 배분</div></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 32px;">
+      <div class="card-title">분석 프로세스 (AI 활용)</div>
+      <div class="card-caption" style="margin-top:10px; line-height:1.7;">
+        상관관계 스캔 → 그룹 비교 &amp; 통계 검정(Mann-Whitney U) → RandomForest 변수 중요도 → 구간별/분포 시각화(KDE·히스토그램) → 2변수 상호작용 리스크 매트릭스 순으로 진행했으며, 각 단계는 AI와 함께 가설을 세우고 그래프로 즉시 검증하는 방식으로 반복했습니다.
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>manufacturing_defect_dataset_clean.csv · 실습용 합성 데이터 (결측치/이상치 인위 생성 후 전처리)</span>
+  <span>정상 n=517 · 불량 n=2,723 · 총 n=3,240</span>
+</footer>
+
+<div class="tooltip" id="tooltip"></div>
 
 <script>
-/* ---------------- 원본 데이터 (11cha_secom_cleaned.csv) ---------------- */
-const RAW = [
-  {id:"LOT1001", dt:"2026-06-30 08:00", equip:"ETCH-01", temp:254.0, pressure:99.3,  gas:46.9, duration:66, result:"양품"},
-  {id:"LOT1002", dt:"2026-06-30 09:00", equip:"ETCH-02", temp:252.2, pressure:105.1, gas:43.3, duration:57, result:"양품"},
-  {id:"LOT1003", dt:"2026-06-30 10:00", equip:"CVD-01",  temp:251.9, pressure:90.4,  gas:39.8, duration:57, result:"양품"},
-  {id:"LOT1004", dt:"2026-06-30 11:00", equip:"CVD-02",  temp:246.6, pressure:96.364, gas:42.9, duration:51, result:"양품"},
-  {id:"LOT1005", dt:"2026-06-30 12:00", equip:"PVD-01",  temp:250.5, pressure:92.9,  gas:43.4, duration:60, result:"양품"},
-  {id:"LOT1007", dt:"2026-06-30 14:00", equip:"ETCH-02", temp:249.9, pressure:94.7,  gas:47.5, duration:55, result:"양품"},
-  {id:"LOT1008", dt:"2026-06-30 15:00", equip:"CVD-01",  temp:272.2, pressure:106.0, gas:44.4, duration:63, result:"양품"},
-  {id:"LOT1011", dt:"2026-06-30 18:00", equip:"ETCH-01", temp:244.6, pressure:103.1, gas:48.1, duration:63, result:"양품"},
-  {id:"LOT1012", dt:"2026-06-30 19:00", equip:"ETCH-02", temp:248.3, pressure:96.364, gas:40.5, duration:64, result:"불량"},
-  {id:"LOT1013", dt:"2026-06-30 20:00", equip:"CVD-01",  temp:241.1, pressure:94.0,  gas:47.4, duration:65, result:"양품"},
-  {id:"LOT1014", dt:"2026-06-30 21:00", equip:"CVD-02",  temp:241.7, pressure:99.6,  gas:47.9, duration:63, result:"양품"},
-  {id:"LOT1016", dt:"2026-06-30 23:00", equip:"ETCH-01", temp:238.6, pressure:105.2, gas:47.7, duration:60, result:"양품"},
-  {id:"LOT1017", dt:"2026-07-01 00:00", equip:"ETCH-02", temp:261.8, pressure:97.4,  gas:42.6, duration:57, result:"양품"},
-  {id:"LOT1018", dt:"2026-07-01 01:00", equip:"CVD-01",  temp:254.0, pressure:105.8, gas:45.8, duration:61, result:"양품"},
-  {id:"LOT1019", dt:"2026-07-01 02:00", equip:"CVD-02",  temp:250.8, pressure:104.8, gas:44.4, duration:58, result:"양품"},
-  {id:"LOT1020", dt:"2026-07-01 03:00", equip:"PVD-01",  temp:260.2, pressure:98.5,  gas:37.0, duration:61, result:"양품"},
-  {id:"LOT1022", dt:"2026-07-01 05:00", equip:"ETCH-02", temp:242.5, pressure:107.0, gas:44.9, duration:53, result:"양품"},
-  {id:"LOT1023", dt:"2026-07-01 06:00", equip:"CVD-01",  temp:250.5, pressure:96.364, gas:44.4, duration:61, result:"불량"},
-  {id:"LOT1024", dt:"2026-07-01 07:00", equip:"CVD-02",  temp:252.7, pressure:100.0, gas:47.3, duration:55, result:"양품"},
-  {id:"LOT1025", dt:"2026-07-01 08:00", equip:"PVD-01",  temp:256.3, pressure:95.5,  gas:49.2, duration:54, result:"양품"},
-  {id:"LOT1027", dt:"2026-07-01 10:00", equip:"ETCH-02", temp:250.8, pressure:97.5,  gas:40.3, duration:60, result:"양품"},
-  {id:"LOT1028", dt:"2026-07-01 11:00", equip:"CVD-01",  temp:254.3, pressure:95.4,  gas:46.9, duration:59, result:"불량"},
-  {id:"LOT1029", dt:"2026-07-01 12:00", equip:"CVD-02",  temp:243.7, pressure:98.4,  gas:47.4, duration:55, result:"양품"},
-  {id:"LOT1030", dt:"2026-07-01 13:00", equip:"PVD-01",  temp:260.9, pressure:112.7, gas:44.0, duration:59, result:"양품"},
-  {id:"LOT1003", dt:"2026-06-30 10:00", equip:"ETCH-01", temp:251.9, pressure:90.4,  gas:39.8, duration:57, result:"양품"},
-];
+(function () {
+  "use strict";
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const tooltip = document.getElementById("tooltip");
 
-const EQUIPS = [...new Set(RAW.map(r=>r.equip))].sort();
-const RESULTS = ["양품","불량"];
-
-/* 히스토그램 구간은 전체 데이터 기준으로 고정 (필터 간 비교 가능하도록) */
-const TEMP_MIN = Math.min(...RAW.map(r=>r.temp));
-const TEMP_MAX = Math.max(...RAW.map(r=>r.temp));
-const BIN_WIDTH = 5;
-const BIN_START = Math.floor(TEMP_MIN / BIN_WIDTH) * BIN_WIDTH;
-const BIN_END = Math.ceil(TEMP_MAX / BIN_WIDTH) * BIN_WIDTH;
-const BIN_EDGES = [];
-for(let b=BIN_START; b<BIN_END; b+=BIN_WIDTH) BIN_EDGES.push(b);
-
-/* ---------------- 필터 상태 ---------------- */
-const state = {
-  equip: new Set(EQUIPS),   // 전체 선택 = 필터 없음
-  result: new Set(RESULTS),
-};
-
-/* ---------------- 필터 UI 생성 ---------------- */
-const equipChipsEl = document.getElementById('equipChips');
-const resultChipsEl = document.getElementById('resultChips');
-
-function makeChip(container, value, groupKey, className){
-  const chip = document.createElement('div');
-  chip.className = 'chip' + (className? ' '+className : '');
-  chip.textContent = value;
-  chip.dataset.value = value;
-  chip.addEventListener('click', ()=>{
-    const set = state[groupKey];
-    if(set.has(value)){
-      if(set.size > 1) set.delete(value); // 최소 1개는 유지
-    } else {
-      set.add(value);
-    }
-    syncChips();
-    render();
-  });
-  container.appendChild(chip);
-}
-
-// "전체" 칩
-function makeAllChip(container, groupKey, allValues){
-  const chip = document.createElement('div');
-  chip.className = 'chip';
-  chip.textContent = '전체';
-  chip.dataset.all = '1';
-  chip.addEventListener('click', ()=>{
-    state[groupKey] = new Set(allValues);
-    syncChips();
-    render();
-  });
-  container.appendChild(chip);
-}
-
-makeAllChip(equipChipsEl, 'equip', EQUIPS);
-EQUIPS.forEach(v=>makeChip(equipChipsEl, v, 'equip'));
-
-makeAllChip(resultChipsEl, 'result', RESULTS);
-RESULTS.forEach(v=>makeChip(resultChipsEl, v, 'result', v==='불량' ? 'bad' : ''));
-
-function syncChips(){
-  [[equipChipsEl,'equip',EQUIPS],[resultChipsEl,'result',RESULTS]].forEach(([el,key,all])=>{
-    const isAll = state[key].size === all.length;
-    el.querySelectorAll('.chip').forEach(chip=>{
-      if(chip.dataset.all){
-        chip.classList.toggle('active', isAll);
-      } else {
-        chip.classList.toggle('active', !isAll && state[key].has(chip.dataset.value));
+  function showTooltip(x, y, rows) {
+    tooltip.innerHTML = "";
+    rows.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "tt-row";
+      if (r.color) {
+        const key = document.createElement("span");
+        key.className = "tt-key";
+        key.style.background = r.color;
+        row.appendChild(key);
       }
+      const val = document.createElement("span");
+      val.className = "tt-val";
+      val.textContent = r.value;
+      row.appendChild(val);
+      const lab = document.createElement("span");
+      lab.className = "tt-label";
+      lab.textContent = r.label;
+      row.appendChild(lab);
+      tooltip.appendChild(row);
     });
-  });
-}
-syncChips();
-
-document.getElementById('resetBtn').addEventListener('click', ()=>{
-  state.equip = new Set(EQUIPS);
-  state.result = new Set(RESULTS);
-  syncChips();
-  render();
-});
-
-/* ---------------- 집계 ---------------- */
-function getFiltered(){
-  return RAW.filter(r => state.equip.has(r.equip) && state.result.has(r.result));
-}
-function avg(arr, key){
-  if(arr.length===0) return 0;
-  return arr.reduce((s,r)=>s+r[key],0)/arr.length;
-}
-
-/* ---------------- KPI 카드 ---------------- */
-const kpiGrid = document.getElementById('kpiGrid');
-function renderKPI(rows){
-  const total = rows.length;
-  const bad = rows.filter(r=>r.result==='불량').length;
-  const good = total - bad;
-  const badRate = total ? (bad/total*100) : 0;
-  const avgTemp = avg(rows,'temp');
-  const avgDur = avg(rows,'duration');
-
-  kpiGrid.innerHTML = `
-    <div class="kpi">
-      <div class="label">전체 건수</div>
-      <div class="value">${total}<span class="unit">건</span></div>
-      <div class="sub">전체 25건 중 ${total}건 표시</div>
-    </div>
-    <div class="kpi">
-      <div class="label">양품 / 불량</div>
-      <div class="value" style="color:${bad>0?'var(--bad)':'var(--good)'}">${good} / ${bad}</div>
-      <div class="sub">불량률 ${badRate.toFixed(1)}%</div>
-    </div>
-    <div class="kpi">
-      <div class="label">평균 챔버온도</div>
-      <div class="value">${total? avgTemp.toFixed(1):'-'}<span class="unit">℃</span></div>
-      <div class="sub">범위 ${total? Math.min(...rows.map(r=>r.temp)).toFixed(1):'-'} ~ ${total? Math.max(...rows.map(r=>r.temp)).toFixed(1):'-'} ℃</div>
-    </div>
-    <div class="kpi">
-      <div class="label">평균 공정시간</div>
-      <div class="value">${total? avgDur.toFixed(1):'-'}</div>
-      <div class="sub">범위 ${total? Math.min(...rows.map(r=>r.duration)):'-'} ~ ${total? Math.max(...rows.map(r=>r.duration)):'-'}</div>
-    </div>
-  `;
-}
-
-/* ---------------- 공통 캔버스 유틸 ---------------- */
-const tooltip = document.getElementById('tooltip');
-function showTooltip(x,y,html){
-  tooltip.innerHTML = html;
-  tooltip.style.display = 'block';
-  tooltip.style.left = (x+14)+'px';
-  tooltip.style.top = (y+14)+'px';
-}
-function hideTooltip(){ tooltip.style.display='none'; }
-
-function setupCanvas(canvas){
-  const dpr = window.devicePixelRatio || 1;
-  const cssWidth = canvas.parentElement.clientWidth;
-  const cssHeight = parseInt(canvas.dataset.height || '260',10);
-  canvas.width = cssWidth * dpr;
-  canvas.height = cssHeight * dpr;
-  canvas.style.width = cssWidth+'px';
-  canvas.style.height = cssHeight+'px';
-  const ctx = canvas.getContext('2d');
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-  return {ctx, w:cssWidth, h:cssHeight};
-}
-
-const PAD = {left:48, right:16, top:16, bottom:36};
-
-/* ---------------- 막대 차트: 설비명별 건수 ---------------- */
-const barCanvas = document.getElementById('barChart');
-let barHitRegions = [];
-function drawBarChart(rows){
-  const {ctx,w,h} = setupCanvas(barCanvas);
-  ctx.clearRect(0,0,w,h);
-  barHitRegions = [];
-
-  const counts = EQUIPS.map(eq => rows.filter(r=>r.equip===eq).length);
-  const total = rows.length;
-  const maxVal = Math.max(1, ...counts);
-  const plotW = w - PAD.left - PAD.right;
-  const plotH = h - PAD.top - PAD.bottom;
-  const barSlot = plotW / EQUIPS.length;
-  const barWidth = barSlot * 0.55;
-
-  // y축 그리드 + 라벨
-  ctx.strokeStyle = '#e2e8f0'; ctx.fillStyle = '#64748b';
-  ctx.font = '11px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-  const steps = 4;
-  for(let i=0;i<=steps;i++){
-    const val = Math.round(maxVal * i/steps);
-    const y = PAD.top + plotH - (val/maxVal)*plotH;
-    ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(w-PAD.right,y); ctx.stroke();
-    ctx.fillText(val, PAD.left-8, y);
+    tooltip.style.left = x + "px";
+    tooltip.style.top = y + "px";
+    tooltip.style.opacity = "1";
   }
-  // y축 제목
-  ctx.save();
-  ctx.translate(14, PAD.top+plotH/2); ctx.rotate(-Math.PI/2);
-  ctx.textAlign='center'; ctx.fillText('건수', 0, 0);
-  ctx.restore();
+  function hideTooltip() { tooltip.style.opacity = "0"; }
 
-  EQUIPS.forEach((eq,i)=>{
-    const val = counts[i];
-    const barH = (val/maxVal)*plotH;
-    const x = PAD.left + i*barSlot + (barSlot-barWidth)/2;
-    const y = PAD.top + plotH - barH;
-    ctx.fillStyle = '#2563eb';
-    ctx.fillRect(x,y,barWidth,barH);
-    // x축 라벨
-    ctx.fillStyle = '#334155'; ctx.textAlign='center'; ctx.textBaseline='top';
-    ctx.fillText(eq, x+barWidth/2, PAD.top+plotH+8);
-    // 값 라벨
-    ctx.fillStyle = '#1a202c'; ctx.textBaseline='bottom';
-    ctx.fillText(val, x+barWidth/2, y-4);
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(SVGNS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
 
-    barHitRegions.push({
-      x1:x, y1:PAD.top, x2:x+barWidth, y2:PAD.top+plotH,
-      html:`<b>${eq}</b><br>건수: ${val}건<br>비율: ${total? (val/total*100).toFixed(1):'0.0'}%`
+  /* ---------------- composition bar ---------------- */
+  const compBar = document.getElementById("compBar");
+  const segGood = el("div", {}, null); // placeholder unused
+  (function(){
+    const good = document.createElement("div");
+    good.className = "comp-seg";
+    good.style.cssText = "width:16%;background:var(--good);";
+    good.textContent = "16%";
+    const gap = document.createElement("div");
+    gap.style.cssText = "width:2px;background:var(--page);flex:none;";
+    const bad = document.createElement("div");
+    bad.className = "comp-seg";
+    bad.style.cssText = "width:82%;background:var(--critical);";
+    bad.textContent = "84%";
+    compBar.appendChild(good); compBar.appendChild(gap); compBar.appendChild(bad);
+  })();
+
+  /* ---------------- rank bar (feature importance) ---------------- */
+  const FEATURES = [
+    {name:"정비시간", value:0.354, top:true},
+    {name:"품질점수", value:0.218, top:true},
+    {name:"생산량", value:0.143, top:true},
+    {name:"품절률", value:0.033},
+    {name:"첨가재료비", value:0.032},
+    {name:"에너지사용량", value:0.030},
+    {name:"에너지효율", value:0.029},
+    {name:"공급업체품질", value:0.028},
+    {name:"가동중단율", value:0.027},
+    {name:"재고회전율", value:0.025},
+    {name:"작업생산성", value:0.024},
+    {name:"첨가공정시간", value:0.023},
+    {name:"생산비용", value:0.019},
+    {name:"안전사고건수", value:0.008},
+    {name:"납기지연", value:0.007}
+  ];
+  (function renderRankBar() {
+    const wrap = document.getElementById("rankbarChart");
+    const max = Math.max(...FEATURES.map(f => f.value));
+    FEATURES.forEach(f => {
+      const row = document.createElement("div");
+      row.className = "rankbar-row";
+
+      const name = document.createElement("div");
+      name.className = "rankbar-name";
+      name.textContent = f.name;
+
+      const track = document.createElement("div");
+      track.className = "rankbar-track";
+
+      const fill = document.createElement("div");
+      fill.className = "rankbar-fill";
+      fill.style.width = (f.value / max * 100) + "%";
+      fill.style.background = f.top ? "var(--accent)" : "var(--baseline)";
+      fill.tabIndex = 0;
+
+      const val = document.createElement("div");
+      val.className = "rankbar-val";
+      val.textContent = (f.value * 100).toFixed(1) + "%";
+      val.style.opacity = f.top ? "1" : "0";
+
+      function onEnter(e) {
+        val.style.opacity = "1";
+        fill.style.filter = "brightness(1.08)";
+        const r = fill.getBoundingClientRect();
+        showTooltip(r.right, r.top, [{label: f.name, value: (f.value*100).toFixed(1) + "%", color: f.top ? "var(--accent)" : "var(--baseline)"}]);
+      }
+      function onLeave() {
+        if (!f.top) val.style.opacity = "0";
+        fill.style.filter = "";
+        hideTooltip();
+      }
+      fill.addEventListener("pointerenter", onEnter);
+      fill.addEventListener("pointerleave", onLeave);
+      fill.addEventListener("focus", onEnter);
+      fill.addEventListener("blur", onLeave);
+
+      track.appendChild(fill);
+      row.appendChild(name); row.appendChild(track); row.appendChild(val);
+      wrap.appendChild(row);
     });
-  });
-}
 
-barCanvas.addEventListener('mousemove', e=>{
-  const rect = barCanvas.getBoundingClientRect();
-  const mx = e.clientX-rect.left, my = e.clientY-rect.top;
-  const hit = barHitRegions.find(r=> mx>=r.x1 && mx<=r.x2 && my>=r.y1 && my<=r.y2);
-  if(hit) showTooltip(e.clientX,e.clientY,hit.html); else hideTooltip();
-});
-barCanvas.addEventListener('mouseleave', hideTooltip);
+    // table view
+    const tableWrap = document.getElementById("rankTableWrap");
+    const table = document.createElement("table");
+    table.className = "data-table";
+    table.innerHTML = "<thead><tr><th>변수</th><th>중요도</th></tr></thead>";
+    const tbody = document.createElement("tbody");
+    FEATURES.forEach(f => {
+      const tr = document.createElement("tr");
+      const td1 = document.createElement("td"); td1.textContent = f.name;
+      const td2 = document.createElement("td"); td2.textContent = (f.value*100).toFixed(1) + "%";
+      tr.appendChild(td1); tr.appendChild(td2);
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    tableWrap.appendChild(table);
 
-/* ---------------- 히스토그램: 챔버온도 분포 ---------------- */
-const histCanvas = document.getElementById('histChart');
-let histHitRegions = [];
-function drawHistogram(rows){
-  const {ctx,w,h} = setupCanvas(histCanvas);
-  ctx.clearRect(0,0,w,h);
-  histHitRegions = [];
+    document.getElementById("toggleRankTable").addEventListener("click", function () {
+      const isHidden = tableWrap.style.display === "none";
+      tableWrap.style.display = isHidden ? "block" : "none";
+      wrap.style.display = isHidden ? "none" : "block";
+      this.setAttribute("aria-expanded", String(isHidden));
+      this.textContent = isHidden ? "차트로 보기" : "표로 보기";
+    });
+  })();
 
-  const counts = BIN_EDGES.map(edge => rows.filter(r=> r.temp>=edge && r.temp<edge+BIN_WIDTH).length);
-  const total = rows.length;
-  const maxVal = Math.max(1, ...counts);
-  const plotW = w - PAD.left - PAD.right;
-  const plotH = h - PAD.top - PAD.bottom;
-  const slot = plotW / BIN_EDGES.length;
-  const barWidth = slot * 0.85;
+  /* ---------------- MaintenanceHours trend line chart ---------------- */
+  const MH_TREND = [{"x":0.0,"y":74.4},{"x":0.0,"y":73.7},{"x":0.0,"y":76.4},{"x":1.0,"y":73.6},{"x":1.0,"y":71.2},{"x":1.0,"y":70.4},{"x":2.0,"y":70.8},{"x":2.0,"y":68.4},{"x":3.0,"y":68.8},{"x":3.0,"y":70.8},{"x":3.0,"y":69.6},{"x":4.0,"y":67.2},{"x":4.0,"y":66.8},{"x":4.0,"y":69.6},{"x":5.0,"y":69.6},{"x":5.0,"y":71.6},{"x":6.0,"y":76.0},{"x":6.0,"y":74.0},{"x":6.0,"y":72.0},{"x":7.0,"y":72.0},{"x":7.0,"y":70.0},{"x":7.0,"y":68.0},{"x":8.0,"y":67.6},{"x":8.0,"y":69.2},{"x":9.0,"y":66.8},{"x":9.0,"y":68.0},{"x":10.0,"y":66.4},{"x":10.0,"y":74.0},{"x":10.0,"y":76.8},{"x":11.0,"y":81.6},{"x":11.0,"y":83.2},{"x":11.0,"y":90.0},{"x":12.0,"y":89.6},{"x":12.0,"y":89.6},{"x":12.0,"y":89.6},{"x":12.0,"y":93.6},{"x":13.0,"y":93.6},{"x":13.0,"y":94.0},{"x":13.0,"y":95.2},{"x":14.0,"y":98.0},{"x":14.0,"y":96.8},{"x":15.0,"y":95.6},{"x":15.0,"y":95.6},{"x":15.0,"y":96.0},{"x":16.0,"y":94.4},{"x":16.0,"y":94.8},{"x":16.0,"y":95.2},{"x":17.0,"y":94.8},{"x":17.0,"y":95.2},{"x":17.0,"y":95.6},{"x":18.0,"y":96.0},{"x":18.0,"y":96.0},{"x":19.0,"y":96.4},{"x":19.0,"y":95.6},{"x":19.0,"y":96.0},{"x":20.0,"y":96.8},{"x":20.0,"y":96.8},{"x":20.0,"y":97.2},{"x":21.0,"y":97.6},{"x":21.0,"y":96.8},{"x":21.0,"y":97.2},{"x":22.0,"y":96.8},{"x":22.0,"y":96.4},{"x":23.0,"y":95.8},{"x":23.0,"y":97.0}];
 
-  ctx.strokeStyle = '#e2e8f0'; ctx.fillStyle = '#64748b';
-  ctx.font = '11px sans-serif'; ctx.textAlign='right'; ctx.textBaseline='middle';
-  const steps = 4;
-  for(let i=0;i<=steps;i++){
-    const val = Math.round(maxVal*i/steps);
-    const y = PAD.top + plotH - (val/maxVal)*plotH;
-    ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(w-PAD.right,y); ctx.stroke();
-    ctx.fillText(val, PAD.left-8, y);
-  }
-  ctx.save();
-  ctx.translate(14, PAD.top+plotH/2); ctx.rotate(-Math.PI/2);
-  ctx.textAlign='center'; ctx.fillText('건수', 0, 0);
-  ctx.restore();
+  function renderLineChart(containerId, data, opts) {
+    const container = document.getElementById(containerId);
+    const W = 520, H = 260, M = {top: 16, right: 18, bottom: 30, left: 38};
+    const plotW = W - M.left - M.right, plotH = H - M.top - M.bottom;
+    const xMin = 0, xMax = opts.xMax, yMin = 0, yMax = 100;
+    const xs = v => M.left + (v - xMin) / (xMax - xMin) * plotW;
+    const ys = v => M.top + plotH - (v - yMin) / (yMax - yMin) * plotH;
 
-  BIN_EDGES.forEach((edge,i)=>{
-    const val = counts[i];
-    const barH = (val/maxVal)*plotH;
-    const x = PAD.left + i*slot + (slot-barWidth)/2;
-    const y = PAD.top + plotH - barH;
-    ctx.fillStyle = '#0891b2';
-    ctx.fillRect(x,y,barWidth,barH);
-    ctx.fillStyle = '#334155'; ctx.textAlign='center'; ctx.textBaseline='top';
-    ctx.font = '10px sans-serif';
-    ctx.fillText(`${edge}`, x+barWidth/2, PAD.top+plotH+8);
-    if(val>0){
-      ctx.fillStyle = '#1a202c'; ctx.textBaseline='bottom'; ctx.font='11px sans-serif';
-      ctx.fillText(val, x+barWidth/2, y-4);
+    const svg = el("svg", {class:"chart", viewBox:"0 0 " + W + " " + H, role:"img", "aria-label": opts.ariaLabel});
+
+    // gridlines (y)
+    [0,25,50,75,100].forEach(v => {
+      el("line", {x1:M.left, x2:W-M.right, y1:ys(v), y2:ys(v), class: v===0 ? "baseline":"grid-line"}, svg);
+      const t = el("text", {x:M.left-8, y:ys(v)+3, class:"axis-label", "text-anchor":"end"}, svg);
+      t.textContent = v + "%";
+    });
+    // x ticks
+    for (let v = 0; v <= xMax; v += opts.xStep) {
+      const t = el("text", {x:xs(v), y:H-8, class:"axis-label", "text-anchor":"middle"}, svg);
+      t.textContent = v + (opts.xUnit || "");
     }
-    histHitRegions.push({
-      x1:x, y1:PAD.top, x2:x+barWidth, y2:PAD.top+plotH,
-      html:`<b>${edge}℃ ~ ${edge+BIN_WIDTH}℃</b><br>건수: ${val}건<br>비율: ${total? (val/total*100).toFixed(1):'0.0'}%`
-    });
-  });
-  // x축 제목
-  ctx.fillStyle = '#64748b'; ctx.font='11px sans-serif'; ctx.textAlign='center';
-  ctx.fillText('챔버온도 구간(℃)', PAD.left+plotW/2, h-6);
-}
 
-histCanvas.addEventListener('mousemove', e=>{
-  const rect = histCanvas.getBoundingClientRect();
-  const mx = e.clientX-rect.left, my = e.clientY-rect.top;
-  const hit = histHitRegions.find(r=> mx>=r.x1 && mx<=r.x2 && my>=r.y1 && my<=r.y2);
-  if(hit) showTooltip(e.clientX,e.clientY,hit.html); else hideTooltip();
-});
-histCanvas.addEventListener('mouseleave', hideTooltip);
+    // area
+    let areaD = "M " + xs(data[0].x) + " " + ys(0);
+    data.forEach(p => areaD += " L " + xs(p.x) + " " + ys(p.y));
+    areaD += " L " + xs(data[data.length-1].x) + " " + ys(0) + " Z";
+    el("path", {d: areaD, fill: "var(--accent)", opacity: 0.1, stroke:"none"}, svg);
 
-/* ---------------- 선 그래프: 시간대별 챔버온도 추이 ---------------- */
-const lineCanvas = document.getElementById('lineChart');
-let linePoints = [];
-function drawLineChart(rows){
-  const {ctx,w,h} = setupCanvas(lineCanvas);
-  ctx.clearRect(0,0,w,h);
-  linePoints = [];
+    // line
+    let lineD = "M " + data.map(p => xs(p.x) + " " + ys(p.y)).join(" L ");
+    el("path", {d: lineD, fill:"none", stroke:"var(--accent)", "stroke-width":2, "stroke-linejoin":"round", "stroke-linecap":"round"}, svg);
 
-  const sorted = [...rows].sort((a,b)=> new Date(a.dt.replace(' ','T')) - new Date(b.dt.replace(' ','T')));
-  const plotW = w - PAD.left - PAD.right;
-  const plotH = h - PAD.top - PAD.bottom;
-
-  if(sorted.length===0){
-    ctx.fillStyle='#94a3b8'; ctx.font='13px sans-serif'; ctx.textAlign='center';
-    ctx.fillText('선택한 조건에 해당하는 데이터가 없습니다.', w/2, h/2);
-    return;
-  }
-
-  const vals = sorted.map(r=>r.temp);
-  const minV = Math.min(...vals), maxV = Math.max(...vals);
-  const yMin = Math.floor((minV-2)/5)*5, yMax = Math.ceil((maxV+2)/5)*5;
-
-  ctx.strokeStyle = '#e2e8f0'; ctx.fillStyle = '#64748b';
-  ctx.font = '11px sans-serif'; ctx.textAlign='right'; ctx.textBaseline='middle';
-  const steps=4;
-  for(let i=0;i<=steps;i++){
-    const val = yMin + (yMax-yMin)*i/steps;
-    const y = PAD.top + plotH - (i/steps)*plotH;
-    ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(w-PAD.right,y); ctx.stroke();
-    ctx.fillText(val.toFixed(0), PAD.left-8, y);
-  }
-  ctx.save();
-  ctx.translate(14, PAD.top+plotH/2); ctx.rotate(-Math.PI/2);
-  ctx.textAlign='center'; ctx.fillText('챔버온도(℃)', 0, 0);
-  ctx.restore();
-
-  const n = sorted.length;
-  const stepX = n>1 ? plotW/(n-1) : 0;
-  const coords = sorted.map((r,i)=>{
-    const x = n>1 ? PAD.left + i*stepX : PAD.left+plotW/2;
-    const y = PAD.top + plotH - ((r.temp-yMin)/(yMax-yMin))*plotH;
-    return {x,y,r};
-  });
-
-  ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 2; ctx.beginPath();
-  coords.forEach((c,i)=> i===0? ctx.moveTo(c.x,c.y) : ctx.lineTo(c.x,c.y));
-  ctx.stroke();
-
-  coords.forEach(c=>{
-    ctx.fillStyle = c.r.result==='불량' ? '#dc2626' : '#2563eb';
-    ctx.beginPath(); ctx.arc(c.x,c.y,3.5,0,Math.PI*2); ctx.fill();
-    linePoints.push({x:c.x,y:c.y,r:c.r});
-  });
-
-  // x축 라벨: 처음/끝 및 일부 간격만 표시(겹침 방지)
-  ctx.fillStyle='#64748b'; ctx.font='10px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='top';
-  const labelEvery = Math.max(1, Math.ceil(n/6));
-  coords.forEach((c,i)=>{
-    if(i%labelEvery===0 || i===n-1){
-      const label = c.r.dt.slice(5).replace(' ','\n');
-      const [d,t] = label.split('\n');
-      ctx.fillText(d, c.x, PAD.top+plotH+6);
-      ctx.fillText(t, c.x, PAD.top+plotH+18);
+    // threshold marker
+    if (opts.threshold != null) {
+      el("line", {x1:xs(opts.threshold), x2:xs(opts.threshold), y1:M.top, y2:M.top+plotH, stroke:"var(--muted)", "stroke-width":1}, svg);
+      const lab = el("text", {x:xs(opts.threshold)+5, y:M.top+12, class:"axis-label", fill:"var(--ink-2)"}, svg);
+      lab.textContent = opts.thresholdLabel;
     }
+
+    // endpoint marker + label
+    const last = data[data.length-1];
+    el("circle", {cx:xs(last.x), cy:ys(last.y), r:4, fill:"var(--accent)", stroke:"var(--surface)", "stroke-width":2}, svg);
+    const endLab = el("text", {x:xs(last.x)-6, y:ys(last.y)-10, class:"axis-label", "text-anchor":"end", fill:"var(--ink)", "font-weight":700}, svg);
+    endLab.textContent = last.y.toFixed(0) + "%";
+
+    // crosshair + hover
+    const hitRect = el("rect", {x:M.left, y:M.top, width:plotW, height:plotH, fill:"transparent"}, svg);
+    const crosshair = el("line", {x1:0,x2:0,y1:M.top,y2:M.top+plotH, stroke:"var(--muted)", "stroke-width":1, opacity:0}, svg);
+    const hoverDot = el("circle", {r:5, fill:"var(--accent)", stroke:"var(--surface)", "stroke-width":2, opacity:0}, svg);
+
+    function nearest(mx) {
+      const vx = xMin + (mx - M.left) / plotW * (xMax - xMin);
+      let best = data[0], bd = Infinity;
+      data.forEach(p => { const d = Math.abs(p.x - vx); if (d < bd) { bd = d; best = p; } });
+      return best;
+    }
+    hitRect.addEventListener("pointermove", function (e) {
+      const rect = svg.getBoundingClientRect();
+      const mx = (e.clientX - rect.left) / rect.width * W;
+      const p = nearest(mx);
+      crosshair.setAttribute("x1", xs(p.x)); crosshair.setAttribute("x2", xs(p.x)); crosshair.setAttribute("opacity", 1);
+      hoverDot.setAttribute("cx", xs(p.x)); hoverDot.setAttribute("cy", ys(p.y)); hoverDot.setAttribute("opacity", 1);
+      showTooltip(e.clientX, rect.top, [{label: opts.xUnitLabel + " " + p.x.toFixed(0) + (opts.xUnit||""), value: p.y.toFixed(1) + "%", color:"var(--accent)"}]);
+    });
+    hitRect.addEventListener("pointerleave", function () {
+      crosshair.setAttribute("opacity", 0); hoverDot.setAttribute("opacity", 0); hideTooltip();
+    });
+
+    container.appendChild(svg);
+  }
+
+  renderLineChart("mhChart", MH_TREND, {
+    xMax: 23, xStep: 5, xUnit: "h", xUnitLabel: "정비시간",
+    threshold: 10, thresholdLabel: "≈10h부터 급증",
+    ariaLabel: "정비시간에 따른 불량률 추세선"
   });
-}
 
-lineCanvas.addEventListener('mousemove', e=>{
-  const rect = lineCanvas.getBoundingClientRect();
-  const mx = e.clientX-rect.left, my = e.clientY-rect.top;
-  let nearest=null, best=Infinity;
-  linePoints.forEach(p=>{
-    const d = Math.hypot(p.x-mx, p.y-my);
-    if(d<best){best=d; nearest=p;}
-  });
-  if(nearest && best<20){
-    showTooltip(e.clientX,e.clientY,
-      `<b>${nearest.r.id}</b> (${nearest.r.equip})<br>${nearest.r.dt}<br>챔버온도: ${nearest.r.temp.toFixed(1)}℃<br>판정: ${nearest.r.result}`);
-  } else hideTooltip();
-});
-lineCanvas.addEventListener('mouseleave', hideTooltip);
+  /* ---------------- QualityScore distribution (area, 2 series, status colors) ---------------- */
+  const QS_DIST = {"centers":[60.8,62.5,64.2,65.8,67.5,69.2,70.8,72.5,74.2,75.8,77.5,79.2,80.8,82.5,84.2,85.8,87.5,89.2,90.8,92.5,94.2,95.8,97.5,99.2],
+    "normal":[0.0128,0.0046,0.0046,0.0058,0.0081,0.0035,0.0058,0.0058,0.007,0.036,0.0325,0.0371,0.0488,0.0313,0.036,0.0406,0.0337,0.0255,0.0418,0.0337,0.029,0.0499,0.0348,0.0313],
+    "defect":[0.0304,0.0326,0.0253,0.0249,0.0295,0.0258,0.0278,0.0256,0.0293,0.0229,0.0234,0.0231,0.0229,0.0238,0.0212,0.0212,0.0247,0.022,0.0256,0.0234,0.0234,0.0249,0.0225,0.024]};
 
-/* ---------------- 렌더링 ---------------- */
-function render(){
-  const rows = getFiltered();
-  renderKPI(rows);
-  drawBarChart(rows);
-  drawHistogram(rows);
-  drawLineChart(rows);
-}
+  (function renderDistChart() {
+    const container = document.getElementById("qsChart");
+    const W = 520, H = 260, M = {top: 16, right: 18, bottom: 30, left: 30};
+    const plotW = W - M.left - M.right, plotH = H - M.top - M.bottom;
+    const xMin = 60, xMax = 100;
+    const yMax = Math.max(...QS_DIST.normal, ...QS_DIST.defect) * 1.15;
+    const xs = v => M.left + (v - xMin) / (xMax - xMin) * plotW;
+    const ys = v => M.top + plotH - (v / yMax) * plotH;
 
-window.addEventListener('resize', ()=>{
-  clearTimeout(window.__rz);
-  window.__rz = setTimeout(render, 120);
-});
+    const svg = el("svg", {class:"chart", viewBox:"0 0 " + W + " " + H, role:"img", "aria-label":"품질점수 분포 비교, 정상군과 불량군"});
 
-render();
+    el("line", {x1:M.left, x2:W-M.right, y1:ys(0), y2:ys(0), class:"baseline"}, svg);
+    [60,70,80,90,100].forEach(v => {
+      const t = el("text", {x:xs(v), y:H-8, class:"axis-label", "text-anchor":"middle"}, svg);
+      t.textContent = v;
+    });
+
+    function pathFor(key) {
+      const pts = QS_DIST.centers.map((c,i) => [xs(c), ys(QS_DIST[key][i])]);
+      let d = "M " + xs(xMin) + " " + ys(0);
+      pts.forEach(p => d += " L " + p[0] + " " + p[1]);
+      d += " L " + xs(xMax) + " " + ys(0) + " Z";
+      return d;
+    }
+    function lineFor(key) {
+      const pts = QS_DIST.centers.map((c,i) => [xs(c), ys(QS_DIST[key][i])]);
+      return "M " + pts.map(p => p[0] + " " + p[1]).join(" L ");
+    }
+
+    el("path", {d: pathFor("defect"), fill:"var(--critical)", opacity:0.12, stroke:"none"}, svg);
+    el("path", {d: lineFor("defect"), fill:"none", stroke:"var(--critical)", "stroke-width":2, "stroke-linejoin":"round"}, svg);
+    el("path", {d: pathFor("normal"), fill:"var(--good)", opacity:0.12, stroke:"none"}, svg);
+    el("path", {d: lineFor("normal"), fill:"none", stroke:"var(--good)", "stroke-width":2, "stroke-linejoin":"round"}, svg);
+
+    // threshold
+    el("line", {x1:xs(76), x2:xs(76), y1:M.top, y2:M.top+plotH, stroke:"var(--muted)", "stroke-width":1}, svg);
+    const lab = el("text", {x:xs(76)+5, y:M.top+12, class:"axis-label", fill:"var(--ink-2)"}, svg);
+    lab.textContent = "임계점 ≈76";
+
+    // direct labels near peaks
+    const dLab = el("text", {x:xs(63), y:ys(0.033)-8, class:"axis-label", fill:"var(--critical)", "font-weight":700}, svg);
+    dLab.textContent = "불량";
+    const nLab = el("text", {x:xs(89), y:ys(0.0499)-8, class:"axis-label", fill:"var(--good)", "font-weight":700}, svg);
+    nLab.textContent = "정상";
+
+    // hover
+    const hitRect = el("rect", {x:M.left, y:M.top, width:plotW, height:plotH, fill:"transparent"}, svg);
+    const crosshair = el("line", {x1:0,x2:0,y1:M.top,y2:M.top+plotH, stroke:"var(--muted)", "stroke-width":1, opacity:0}, svg);
+    hitRect.addEventListener("pointermove", function (e) {
+      const rect = svg.getBoundingClientRect();
+      const mx = (e.clientX - rect.left) / rect.width * W;
+      const vx = xMin + (mx - M.left) / plotW * (xMax - xMin);
+      let idx = 0, bd = Infinity;
+      QS_DIST.centers.forEach((c,i) => { const d = Math.abs(c-vx); if (d<bd) {bd=d; idx=i;} });
+      crosshair.setAttribute("x1", xs(QS_DIST.centers[idx])); crosshair.setAttribute("x2", xs(QS_DIST.centers[idx])); crosshair.setAttribute("opacity",1);
+      showTooltip(e.clientX, rect.top, [
+        {label:"불량", value:(QS_DIST.defect[idx]*100).toFixed(2)+"", color:"var(--critical)"},
+        {label:"정상", value:(QS_DIST.normal[idx]*100).toFixed(2)+"", color:"var(--good)"}
+      ]);
+    });
+    hitRect.addEventListener("pointerleave", function () { crosshair.setAttribute("opacity",0); hideTooltip(); });
+
+    container.appendChild(svg);
+
+    const legend = document.createElement("div");
+    legend.className = "comp-legend";
+    legend.style.marginTop = "6px";
+    legend.innerHTML = '<div class="item"><span class="sw" style="background:var(--good)"></span>정상(0)</div><div class="item"><span class="sw" style="background:var(--critical)"></span>불량(1)</div>';
+    container.appendChild(legend);
+  })();
+
+  /* ---------------- Risk heatmap ---------------- */
+  const HEAT_ROWS = ["93~100","87~93","80~87","73~80","67~73","60~67"];
+  const HEAT_COLS = ["0~4","4~8","8~12","12~15","15~19","19~23"];
+  const HEAT_VALUES = [
+    [59,61,64,92,96,97],
+    [56,62,64,93,94,95],
+    [49,54,62,90,95,99],
+    [71,68,62,93,97,98],
+    [96,97,97,95,97,95],
+    [96,95,92,98,94,98]
+  ];
+  const SEQ_STEPS = ["#cde2fb","#b7d3f6","#9ec5f4","#86b6ef","#6da7ec","#5598e7","#3987e5","#2a78d6","#256abf","#1c5cab","#184f95","#104281","#0d366b"];
+  function seqColor(v, min, max) {
+    const t = (v - min) / (max - min);
+    const idx = Math.round(t * (SEQ_STEPS.length - 1));
+    return SEQ_STEPS[Math.max(0, Math.min(SEQ_STEPS.length-1, idx))];
+  }
+
+  (function renderHeatmap() {
+    const container = document.getElementById("heatChart");
+    const cell = 68, gap = 2, labelW = 64, labelH = 26;
+    const W = labelW + HEAT_COLS.length * (cell + gap);
+    const H = labelH + HEAT_ROWS.length * (cell + gap) + 30;
+    const svg = el("svg", {class:"chart", viewBox:"0 0 " + W + " " + H, width: W, height: H, role:"img", "aria-label":"정비시간과 품질점수에 따른 불량률 리스크 지도"});
+
+    const min = Math.min(...HEAT_VALUES.flat()), max = Math.max(...HEAT_VALUES.flat());
+
+    HEAT_COLS.forEach((c,ci) => {
+      const t = el("text", {x: labelW + ci*(cell+gap) + cell/2, y: 14, class:"axis-label", "text-anchor":"middle"}, svg);
+      t.textContent = c;
+    });
+    const xAxisTitle = el("text", {x: labelW + HEAT_COLS.length*(cell+gap)/2, y: H-16, class:"axis-label", "text-anchor":"middle", "font-weight":700}, svg);
+    xAxisTitle.textContent = "정비시간 (h)";
+
+    HEAT_ROWS.forEach((r, ri) => {
+      const t = el("text", {x: labelW - 8, y: labelH + ri*(cell+gap) + cell/2 + 4, class:"axis-label", "text-anchor":"end"}, svg);
+      t.textContent = r;
+      HEAT_COLS.forEach((c, ci) => {
+        const v = HEAT_VALUES[ri][ci];
+        const color = seqColor(v, min, max);
+        const x = labelW + ci*(cell+gap), y = labelH + ri*(cell+gap);
+        const rect = el("rect", {x, y, width:cell, height:cell, rx:3, fill:color, tabindex:0}, svg);
+        rect.style.cursor = "pointer";
+        const t2 = (v - min)/(max-min);
+        const textColor = t2 > 0.42 ? "#ffffff" : "#0b0b0b";
+        const label = el("text", {x:x+cell/2, y:y+cell/2+4, "text-anchor":"middle", fill:textColor, "font-size":13, "font-weight":700}, svg);
+        label.textContent = v + "%";
+
+        function onEnter(e) {
+          rect.setAttribute("stroke", "var(--ink)"); rect.setAttribute("stroke-width", 2);
+          const rr = rect.getBoundingClientRect();
+          showTooltip(rr.left + rr.width/2, rr.top, [{label: "정비 " + c + "h · 품질 " + r, value: v + "%", color}]);
+        }
+        function onLeave() { rect.removeAttribute("stroke"); hideTooltip(); }
+        rect.addEventListener("pointerenter", onEnter);
+        rect.addEventListener("pointermove", onEnter);
+        rect.addEventListener("pointerleave", onLeave);
+        rect.addEventListener("focus", onEnter);
+        rect.addEventListener("blur", onLeave);
+      });
+    });
+
+    const yAxisTitle = el("text", {x:-(labelH + HEAT_ROWS.length*(cell+gap)/2), y: 14, class:"axis-label", "text-anchor":"middle", "font-weight":700, transform:"rotate(-90)"}, svg);
+    yAxisTitle.textContent = "품질점수";
+
+    container.appendChild(svg);
+
+    // table view
+    const tableWrap = document.getElementById("heatTableWrap");
+    const table = document.createElement("table");
+    table.className = "data-table";
+    let thead = "<thead><tr><th>품질점수 \\ 정비시간</th>" + HEAT_COLS.map(c=>"<th>"+c+"h</th>").join("") + "</tr></thead>";
+    let tbody = "<tbody>" + HEAT_ROWS.map((r,ri) => "<tr><td>"+r+"</td>" + HEAT_VALUES[ri].map(v=>"<td>"+v+"%</td>").join("") + "</tr>").join("") + "</tbody>";
+    table.innerHTML = thead + tbody;
+    tableWrap.appendChild(table);
+
+    document.getElementById("toggleHeatTable").addEventListener("click", function () {
+      const isHidden = tableWrap.style.display === "none";
+      tableWrap.style.display = isHidden ? "block" : "none";
+      container.style.display = isHidden ? "none" : "block";
+      this.setAttribute("aria-expanded", String(isHidden));
+      this.textContent = isHidden ? "차트로 보기" : "표로 보기";
+    });
+  })();
+})();
 </script>
 </body>
 </html>
