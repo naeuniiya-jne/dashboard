@@ -231,7 +231,7 @@
 <body>
 
 <div class="topbar">
-  <div class="brand">DEFECT&nbsp;ANALYSIS <b>/ 제조 불량 원인 분석</b></div>
+  <div class="brand">DATA&nbsp;ANALYSIS <b>/ 제조 불량 원인 분석</b></div>
   <nav class="topnav">
     <a href="#overview">01 개요</a>
     <a href="#causes">02 원인분석</a>
@@ -243,7 +243,7 @@
   <section id="overview">
     <div class="eyebrow"><span class="num">01</span>OVERVIEW</div>
     <h1 class="section-title">데이터 개요</h1>
-    <p class="section-sub">제조 공정에서 수집한 3,240건의 생산 배치 데이터. 실습을 위해 결측치·이상치를 인위적으로 생성한 뒤 전처리를 완료한 정적 스냅샷 데이터입니다.</p>
+    <p class="section-sub">제조 공정에서 수집한 생산 배치 3,240건 데이터로, 실습을 위해 결측치·이상치를 인위적으로 만들고 전처리까지 마쳤습니다.</p>
 
     <div class="hero-row">
       <div class="hero-figure">
@@ -265,16 +265,11 @@
       <div class="meta-tile"><div class="k mono">0</div><div class="l">결측치 (전처리 완료)</div></div>
       <div class="meta-tile"><div class="k mono">3</div><div class="l">핵심 연관 요인 (다음 섹션)</div></div>
     </div>
-
-    <div class="callout">
-      <span class="icon">&#9888;</span>
-      <div><b>표본 구성에 대한 주의:</b> 정상(16%)·불량(84%) 비율이 불균형해 전체 평균 통계는 불량 쪽에 치우칠 수 있습니다. 아래 분석은 이를 감안해 그룹별 비교와 통계 검정으로 보완했습니다. 또한 시간 축이 없는 스냅샷 데이터라 추세가 아닌 <b>구조적 연관성</b> 중심으로 해석합니다.</div>
-    </div>
   </section>
 
   <section id="causes">
     <div class="eyebrow"><span class="num">02</span>ROOT CAUSE</div>
-    <h1 class="section-title">불량과 연관된 요인</h1>
+    <h1 class="section-title">주요 불량 요인 분석</h1>
     <p class="section-sub">17개 변수 중 무엇이 불량 여부(DefectStatus)를 설명하는지, RandomForest 변수 중요도와 통계 검정으로 확인했습니다.</p>
 
     <div class="card chart-card">
@@ -321,7 +316,33 @@
         </div>
         <button class="table-toggle" id="toggleHeatTable" aria-expanded="false">표로 보기</button>
       </div>
-      <div id="heatChart" style="margin-top: 14px;"></div>
+      <div style="margin-top: 14px; display:flex; gap:32px; align-items:flex-start; flex-wrap:wrap;">
+        <div id="heatChart"></div>
+        <div id="heatLegend"></div>
+        <div style="flex:1; min-width:230px; display:flex; flex-direction:column; gap:18px; padding-top:6px;">
+          <div>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--critical);flex:none;"></span>
+              <span style="font-size:11px;letter-spacing:0.06em;color:var(--muted);text-transform:uppercase;font-family:ui-monospace, 'SF Mono', 'IBM Plex Mono', Menlo, Consolas, monospace;">최고 위험</span>
+            </div>
+            <div style="font-size:14px;">품질 <b>80~87점</b> &#215; 정비 <b>19~23h</b> → <b style="color:var(--critical)">99%</b></div>
+          </div>
+          <div>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--good);flex:none;"></span>
+              <span style="font-size:11px;letter-spacing:0.06em;color:var(--muted);text-transform:uppercase;font-family:ui-monospace, 'SF Mono', 'IBM Plex Mono', Menlo, Consolas, monospace;">최저 위험</span>
+            </div>
+            <div style="font-size:14px;">품질 <b>80~87점</b> &#215; 정비 <b>0~4h</b> → <b style="color:var(--good)">49%</b></div>
+          </div>
+          <div>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--warning);flex:none;"></span>
+              <span style="font-size:11px;letter-spacing:0.06em;color:var(--muted);text-transform:uppercase;font-family:ui-monospace, 'SF Mono', 'IBM Plex Mono', Menlo, Consolas, monospace;">주의</span>
+            </div>
+            <div style="font-size:14px;">품질 <b>73점 미만</b>은 정비시간과 무관하게 대부분 <b>90% 이상</b></div>
+          </div>
+        </div>
+      </div>
       <div id="heatTableWrap" style="display:none;"></div>
     </div>
 
@@ -760,6 +781,43 @@
       this.setAttribute("aria-expanded", String(isHidden));
       this.textContent = isHidden ? "차트로 보기" : "표로 보기";
     });
+  })();
+
+  /* ---------------- Risk heatmap color legend ---------------- */
+  (function renderHeatLegend() {
+    const container = document.getElementById("heatLegend");
+    const min = Math.min(...HEAT_VALUES.flat()), max = Math.max(...HEAT_VALUES.flat());
+    const barW = 18, barTop = 26, barBottom = 26 + 6*70, barH = barBottom - barTop;
+    const W = 92, H = barBottom + 30;
+    const svg = el("svg", {class:"chart", viewBox:"0 0 " + W + " " + H, width: W, height: H, role:"img", "aria-label":"불량률 색상 범례, 낮음에서 높음"});
+
+    const title = el("text", {x:0, y:14, class:"axis-label", "font-weight":700}, svg);
+    title.textContent = "불량률(%)";
+
+    const defs = el("defs", {}, svg);
+    const grad = el("linearGradient", {id:"legendGrad", x1:"0", y1:"0", x2:"0", y2:"1"}, defs);
+    const steps = SEQ_STEPS.slice().reverse(); // dark(=high) at top -> light(=low) at bottom
+    steps.forEach((c, i) => {
+      el("stop", {offset: (i/(steps.length-1)*100) + "%", "stop-color": c}, grad);
+    });
+
+    el("rect", {x:0, y:barTop, width:barW, height:barH, rx:3, fill:"url(#legendGrad)", stroke:"var(--border)"}, svg);
+
+    const ticks = [
+      {v: max, y: barTop},
+      {v: Math.round((max+min)/2), y: barTop + barH/2},
+      {v: min, y: barTop + barH}
+    ];
+    ticks.forEach(t => {
+      el("line", {x1:barW, x2:barW+5, y1:t.y, y2:t.y, class:"grid-line"}, svg);
+      const lab = el("text", {x:barW+9, y:t.y+4, class:"axis-label"}, svg);
+      lab.textContent = t.v + "%";
+    });
+
+    const capLow = el("text", {x:0, y:barBottom+22, class:"axis-label", fill:"var(--muted)"}, svg);
+    capLow.textContent = "낮음";
+
+    container.appendChild(svg);
   })();
 })();
 </script>
